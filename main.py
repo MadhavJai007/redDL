@@ -5,9 +5,12 @@
 import json
 import os
 import subprocess
+import yt_dlp
+from bs4 import BeautifulSoup
 import urllib.parse
 from requests import get, exceptions
 from sys import argv as command_line_args
+from logger import YTDLPLogger
 
 """ 
 IMPORTANT:
@@ -37,10 +40,12 @@ def say(text, type=''):
 
 
 def get_post(url, post_type):
+
+    headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/110.0.0.0 Safari/537.36'}
     try:  # checks if link is valid
         r = get(
             url + '.json',
-            headers={'User-agent': generate_user_agent()}
+            headers=headers
         )
     except exceptions.MissingSchema:
         print('Please provide a valid URL')
@@ -58,6 +63,47 @@ def get_post(url, post_type):
         print("The request attempt timedout. Reddit may be down.")
         quit()
 
+    """ Just a random testing block. Ignore."""
+    if(r.status_code == 200):
+        post_id = url[url.find('comments/') + 9:]
+        post_id = f"t3_{post_id[:post_id.find('/')]}"
+        print(post_id)
+
+        """ pointless. just use the reddit ".json" api instead """
+        soup = BeautifulSoup(r.text, 'lxml')
+        # data is found within the script tag
+        js_script = soup.find('script', id='data')
+        print(js_script)
+
+        """ testing how reddit hosted video can be changed to different resolution by changing the number in the url """
+        dash_url = "https://v.redd.it/cz86d1csp6ma1/DASH_1080.mp4"
+        # slicing out the portion of the url after the underscore that comes after the "DASH". This will be the "base" url for the reddit video
+        dash_url = dash_url[:int(dash_url.find('DASH')) + 4]
+        # you can then modify the base url to change the resolution property by appending "{resolution number}.mp4"
+        resolution_height = 1080
+        modified_res_url = f'{dash_url}_{720}.mp4'
+        # the base url can also be used to access the audio portion of the video.
+        # (Not all reddit videos have audio though. Check if it exists with a get request)
+        audio_url = f'{dash_url}_audio.mp4'
+        print(modified_res_url)
+        print(audio_url)
+
+        # json_obj_data = json.loads(js_script.text.replace('window.___r = ', ''))[:-1]
+        #
+        # title = json_obj_data['posts']['models'][post_id]['title']
+        # title = title.replace(' ', '_')
+        # dash_url = json_obj_data['posts']['models'][post_id]['media']['dashUrl']
+        # height = json_obj_data['posts']['models'][post_id]['media']['height']
+        # dash_url = dash_url[:int(dash_url.find('DASH')) + 4]
+        # # the dash URL is the main URL we need to search for
+        # # height is used to find the best quality of video available
+        # video_url = f'{dash_url}_{height}.mp4'  # this URL will be used to download the video
+        # audio_url = f'{dash_url}_audio.mp4'  # this URL will be used to download the audio part
+
+        # print(video_url)
+        # print(audio_url)
+
+
     # if reddit post is unavailable
     if 'error' in r.text:
         if r.status_code == 404:
@@ -74,7 +120,7 @@ def get_post(url, post_type):
         post_type = json_data["post_hint"] if "post_hint" in json_data else "gallery" if "is_gallery" in json_data else "text"
         # print(f'> Post type: {post_type}')
         # print(f'> Is reddit media domain: {json_data["is_reddit_media_domain"]}')
-        # audio_url = 'https://v.redd.it/82k6r4c3alna1/HLSPlaylist.m3u8'.split('HLS')
+        #     # audio_url = 'https://v.redd.it/82k6r4c3alna1/HLSPlaylist.m3u8'.split('HLS')
         # audio_url[0] += 'HLS_AUDIO_160_K.aac'
         # print(audio_url)
     except json.decoder.JSONDecodeError:
@@ -89,6 +135,18 @@ def get_post(url, post_type):
             print("This is a regular text post")
         case _:
             print("Regular media post. Downloading...")
+            # call yt-dlp downloader
+            ydl_opts = {
+                'logger': YTDLPLogger(),
+                'progress_hooks': [my_hook]
+            }
+            with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+                # help(yt_dlp.YoutubeDL)
+                ydl.download(url)
+                # info = ydl.extract_info(url, download=False)
+                # print(json.dumps(ydl.sanitize_info(info)))
+
+
     ytdlp_command = [
         '.\yt-dlp.exe',
         '--list-formats',
@@ -120,9 +178,19 @@ def get_post(url, post_type):
 def get_gallery_data(gallery_data_obj):
     gallery_img_list = gallery_data_obj["items"]
     reddit_img_netloc = "https://i.redd.it/"
+    direct_img_urls = []
     for idx, img_id in enumerate(gallery_img_list):
         print(f'> {idx+1}.{reddit_img_netloc}{img_id["media_id"]}.jpg')
+        direct_img_urls.append(f'> {idx+1}.{reddit_img_netloc}{img_id["media_id"]}.jpg')
 
+def my_hook(d):
+    if d['status'] == "downloading":
+        if d.get('eta') is not None:
+            print(f'> ETA: {d["_eta_str"]} || Speed: {d["_speed_str"]} || Downloaded: {d["_downloaded_bytes_str"]} || Progress: {d["_percent_str"]}')
+    elif d['status'] == 'finished':
+        print('Finished downloading, now post-processing...')
+    elif d['status'] == 'error':
+        print('Uh oh. Stinky!')
 
 def show_help():
     print(f"""
@@ -139,18 +207,11 @@ def remove_query_string(url):
 if __name__ == '__main__':
     print('PyCharm')
 
-    reddit_post_urls = [
-        "https://www.reddit.com/r/playnite/comments/tbbnkp/special_k_helper_improve_using_special_k_with/",  # text post with non media link domain
-        "https://www.reddit.com/r/GalaxyS20FE/comments/11qozwu/problems_with_the_tone_of_colors_my_new_phone_has",
-        "https://www.reddit.com/r/GalaxyS20FE/comments/11q6e4o/got_a_clipon_lens_kit_with_15x_macro_and_it_works",
-        "https://www.reddit.com/r/gaming/comments/11qi515/the_year_is_2007_summer_break_just_started_i_just",
-        "https://www.reddit.com/r/gifs/comments/11ppfms/a_bismuth_crystal_i_would_like_to_share",
-
-    ]
     num_of_args = len(command_line_args)
-    for index, url in enumerate(reddit_post_urls):
-        if num_of_args < 2:
-            show_help()
-        else:
-            print(f">URL: {index+1}")
-            get_post(remove_query_string(url), 'gif')
+    get_post(command_line_args[1], 'gif')
+    # for index, url in enumerate(reddit_post_urls):
+    #     if num_of_args < 2:
+    #         show_help()
+    #     else:
+    #         print(f">URL: {index+1}")
+    #         get_post(remove_query_string(url), 'gif')
