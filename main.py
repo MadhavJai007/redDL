@@ -23,6 +23,7 @@ https://www.reddit.com/comments/11qi515
 Basically the subreddit and post title portion of the url is unnecessary
 """
 
+# TODO: SPLIT INTO MORE FUNCTIONS AND MODULES
 
 def generate_user_agent():
     # random user agent string
@@ -40,6 +41,11 @@ def say(text, type=''):
 
 
 def get_post(url, post_type):
+
+    #TODO = GIve warning if url is not from reddit domain
+    parsed_url = urllib.parse.urlparse(url)
+    if parsed_url.netloc != 'www.reddit.com' : #TODO: Include any reddit subdomains through regex
+        print(f'> WARNING: NON REDDIT URL DETECTED. IF SOMETHING GOES WRONG, DONT CRY')
 
     headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/110.0.0.0 Safari/537.36'}
     try:  # checks if link is valid
@@ -117,8 +123,7 @@ def get_post(url, post_type):
         print(f'> Sub-reddit: {json_data["subreddit_name_prefixed"]}')
         print(f'> Posted by: {json_data["author"]}')
         # print(f'> { ((json_data["post_hint"]), "Text")  ["post_hint" in json_data ] }')
-        post_type = json_data["post_hint"] if "post_hint" in json_data else "gallery" if "is_gallery" in json_data else "text"
-        # print(f'> Post type: {post_type}')
+
         # print(f'> Is reddit media domain: {json_data["is_reddit_media_domain"]}')
         #     # audio_url = 'https://v.redd.it/82k6r4c3alna1/HLSPlaylist.m3u8'.split('HLS')
         # audio_url[0] += 'HLS_AUDIO_160_K.aac'
@@ -127,10 +132,44 @@ def get_post(url, post_type):
         print('ERROR: Post not found')
         quit()
 
+    """ determines the post type"""
+    post_type = json_data["post_hint"] if "post_hint" in json_data else "gallery" if "is_gallery" in json_data else "text"
+    print(f'> Post type: {post_type}')
+
+    """
+    if determined as text post, double check if thats actually true
+    (for some reason, some reddit hosted videos dont have the post_hint attribute) 
+    """
+    if post_type == "text":
+        print("is it really tho?")
+        # check if the media attribute and reddit_video sub-attribute exists
+        if 'reddit_video' in json_data['media']:
+            print("It's not!")
+            post_type = "hosted:video"
+            print(f'> Confirmed as reddit video')
+            print(f'> Post type: {post_type}')
+        else:
+            print("Yes its just a text post.")
+
+
+
+        # except Exception as ex:
+        #     template = "An exception of type {0} occurred. Arguments:\n{1!r}"
+        #     message = template.format(type(ex).__name__, ex.args)
+        #     print(message)
+
+
+    # TODO: Extract permalink attribute for output name configuration
+    permalink = json_data["permalink"]
+    # split so different parts of the url can be used later
+    permalink_attr = permalink.split("/")
+    print(permalink_attr)
+
+    """ decide on action depending on post type"""
     match post_type:
         case "gallery":
             print("This is a gallery post")
-            get_gallery_data(json_data["gallery_data"])
+            img_urls = get_gallery_data(json_data["gallery_data"])
         case "text":
             print("This is a regular text post")
         case _:
@@ -175,6 +214,7 @@ def get_post(url, post_type):
 
     """ is_gallery attribute for gallery posts"""
 
+# function to get the different image ids in the gallery and create downloadable links out of them
 def get_gallery_data(gallery_data_obj):
     gallery_img_list = gallery_data_obj["items"]
     reddit_img_netloc = "https://i.redd.it/"
@@ -182,6 +222,8 @@ def get_gallery_data(gallery_data_obj):
     for idx, img_id in enumerate(gallery_img_list):
         print(f'> {idx+1}.{reddit_img_netloc}{img_id["media_id"]}.jpg')
         direct_img_urls.append(f'> {idx+1}.{reddit_img_netloc}{img_id["media_id"]}.jpg')
+
+    return direct_img_urls
 
 def my_hook(d):
     if d['status'] == "downloading":
@@ -208,7 +250,7 @@ if __name__ == '__main__':
     print('PyCharm')
 
     num_of_args = len(command_line_args)
-    get_post(command_line_args[1], 'gif')
+    get_post(remove_query_string(command_line_args[1]), 'gif')
     # for index, url in enumerate(reddit_post_urls):
     #     if num_of_args < 2:
     #         show_help()
