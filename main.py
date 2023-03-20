@@ -4,6 +4,7 @@
 # Press Double Shift to search everywhere for classes, files, tool windows, actions, and settings.
 import json
 import os
+import shutil
 import subprocess
 import yt_dlp
 from bs4 import BeautifulSoup
@@ -45,7 +46,7 @@ def get_post(url, post_type):
     #TODO = GIve warning if url is not from reddit domain
     parsed_url = urllib.parse.urlparse(url)
     if parsed_url.netloc != 'www.reddit.com' : #TODO: Include any reddit subdomains through regex
-        print(f'> WARNING: NON REDDIT URL DETECTED. IF SOMETHING GOES WRONG, DONT CRY')
+        print(f'> WARNING: NON REDDIT URL DETECTED')
 
     headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/110.0.0.0 Safari/537.36'}
     try:  # checks if link is valid
@@ -169,9 +170,13 @@ def get_post(url, post_type):
     match post_type:
         case "gallery":
             print("This is a gallery post")
-            img_urls = get_gallery_data(json_data["gallery_data"])
+            img_urls = get_gallery_data(json_data["gallery_data"], json_data["media_metadata"])
         case "text":
             print("This is a regular text post")
+        case "image":
+            print("This is an image post")
+            result = download_img(json_data["url"], json_data["title"], json_data["subreddit"])
+            print(result)
         case _:
             print("Regular media post. Downloading...")
             # call yt-dlp downloader
@@ -214,14 +219,44 @@ def get_post(url, post_type):
 
     """ is_gallery attribute for gallery posts"""
 
+
+# function to download image
+def download_img(img_url, img_name, subreddit):
+    response = get(img_url, stream = True)
+
+    # getting the image type extension
+    img_type = img_url.split(".")[-1]
+    img_name = f'{subreddit}-{img_name}.{img_type}'
+
+    # downloading image to disk
+    if response.status_code == 200:
+        with open(img_name, 'wb') as f:
+            shutil.copyfileobj(response.raw, f)
+        print('Image sucessfully Downloaded: ', img_name)
+        return "Success"
+    else:
+        print("Couldn't retrieve the image!!")
+        return "Fail"
+
 # function to get the different image ids in the gallery and create downloadable links out of them
-def get_gallery_data(gallery_data_obj):
+def get_gallery_data(gallery_data_obj, media_metadata_list):
     gallery_img_list = gallery_data_obj["items"]
     reddit_img_netloc = "https://i.redd.it/"
     direct_img_urls = []
     for idx, img_id in enumerate(gallery_img_list):
-        print(f'> {idx+1}.{reddit_img_netloc}{img_id["media_id"]}.jpg')
-        direct_img_urls.append(f'> {idx+1}.{reddit_img_netloc}{img_id["media_id"]}.jpg')
+        media_id = img_id["media_id"]
+        # if the image has a caption
+        caption = img_id["caption"] if "caption" in img_id else "None"
+        # if any associated link is with the image
+        outbound_url = img_id["outbound_url"] if "outbound_url" in img_id else "None"
+        # getting the image type extension
+        img_type = media_metadata_list[media_id]["m"]
+        img_type = img_type[img_type.find("image/")+6:]
+
+        print(f'> {idx+1}. Caption: {caption}')
+        print(f'> {idx+1}. Outbound link: {outbound_url}')
+        print(f'> {idx+1}. {reddit_img_netloc}{media_id}.{img_type}')
+        direct_img_urls.append(f'{reddit_img_netloc}{img_id["media_id"]}.{img_type}')
 
     return direct_img_urls
 
@@ -239,6 +274,7 @@ def show_help():
         Usage : {os.path.basename(command_line_args[0])} <URL_TO_POST_WITH_VIDEO>
     """)
 
+# Used to remove any query portion of the url before doing anything since it can cause problems later on.
 def remove_query_string(url):
     queryIndex=url.find('?')
     if(queryIndex>=0):
