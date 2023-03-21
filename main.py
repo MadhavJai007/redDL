@@ -6,6 +6,7 @@ import json
 import os
 import shutil
 import subprocess
+import errno
 import yt_dlp
 from bs4 import BeautifulSoup
 import urllib.parse
@@ -170,14 +171,17 @@ def get_post(url, post_type):
     match post_type:
         case "gallery":
             print("This is a gallery post")
-            img_urls = get_gallery_data(json_data["gallery_data"], json_data["media_metadata"])
+            img_urls = get_gallery_data(json_data["gallery_data"], json_data["media_metadata"], json_data["title"], json_data["subreddit"], permalink_attr[4])
+            print(img_urls)
         case "text":
             print("This is a regular text post")
         case "image":
             print("This is an image post")
-            result = download_img(json_data["url"], json_data["title"], json_data["subreddit"])
+            result = download_img(json_data["url"], json_data["title"], json_data["subreddit"], False, permalink_attr[4])
             print(result)
         case _:
+            # TODO: Change video title according to user config.
+            # TODO: account for subreddit directory
             print("Regular media post. Downloading...")
             # call yt-dlp downloader
             ydl_opts = {
@@ -221,16 +225,23 @@ def get_post(url, post_type):
 
 
 # function to download image
-def download_img(img_url, img_name, subreddit):
+def download_img(img_url, img_name, subreddit, enable_gallery_subfolder, post_id, post_title=""):
     response = get(img_url, stream = True)
 
     # getting the image type extension
     img_type = img_url.split(".")[-1]
-    img_name = f'{subreddit}-{img_name}.{img_type}'
+    img_name = f'{subreddit}-{img_name} [{post_id}].{img_type}'
+    full_path = img_name
+    to_create = False
+    if enable_gallery_subfolder:
+        print("GALLERY SUBFOLDER ENABLED")
+        full_path = f'./{subreddit}-{post_title} [{post_id}]/{img_name}'
+        to_create = True
 
     # downloading image to disk
     if response.status_code == 200:
-        with open(img_name, 'wb') as f:
+        print(f'full path: {full_path}')
+        with safe_open_wb(full_path, to_create) as f:
             shutil.copyfileobj(response.raw, f)
         print('Image sucessfully Downloaded: ', img_name)
         return "Success"
@@ -239,10 +250,10 @@ def download_img(img_url, img_name, subreddit):
         return "Fail"
 
 # function to get the different image ids in the gallery and create downloadable links out of them
-def get_gallery_data(gallery_data_obj, media_metadata_list):
+def get_gallery_data(gallery_data_obj, media_metadata_list, fallback_title, subreddit, post_id):
     gallery_img_list = gallery_data_obj["items"]
     reddit_img_netloc = "https://i.redd.it/"
-    direct_img_urls = []
+    results_list = []
     for idx, img_id in enumerate(gallery_img_list):
         media_id = img_id["media_id"]
         # if the image has a caption
@@ -256,9 +267,23 @@ def get_gallery_data(gallery_data_obj, media_metadata_list):
         print(f'> {idx+1}. Caption: {caption}')
         print(f'> {idx+1}. Outbound link: {outbound_url}')
         print(f'> {idx+1}. {reddit_img_netloc}{media_id}.{img_type}')
-        direct_img_urls.append(f'{reddit_img_netloc}{img_id["media_id"]}.{img_type}')
 
-    return direct_img_urls
+        img_url = f'{reddit_img_netloc}{media_id}.{img_type}'
+        img_file_name = f'{idx+1}. {caption if caption != "None" else fallback_title}'
+        result = download_img(img_url, img_file_name, subreddit, True, post_id, fallback_title)
+        results_list.append(result)
+
+    return results_list
+
+
+# referenced from https://stackoverflow.com/questions/23793987/write-file-to-a-directory-that-doesnt-exist
+def safe_open_wb(path, to_create):
+    # open a path, creating it if needed
+    # TODO: account for sub reddit specific directories
+    if to_create:
+        os.makedirs(os.path.dirname(path), exist_ok=True)
+    return open(path, 'wb')
+
 
 def my_hook(d):
     if d['status'] == "downloading":
