@@ -42,7 +42,7 @@ def say(text, type=''):
     print(prefix + text)
 
 
-def get_post(url, post_type):
+def get_post(url):
 
     #TODO = GIve warning if url is not from reddit domain
     parsed_url = urllib.parse.urlparse(url)
@@ -96,21 +96,6 @@ def get_post(url, post_type):
         print(modified_res_url)
         print(audio_url)
 
-        # json_obj_data = json.loads(js_script.text.replace('window.___r = ', ''))[:-1]
-        #
-        # title = json_obj_data['posts']['models'][post_id]['title']
-        # title = title.replace(' ', '_')
-        # dash_url = json_obj_data['posts']['models'][post_id]['media']['dashUrl']
-        # height = json_obj_data['posts']['models'][post_id]['media']['height']
-        # dash_url = dash_url[:int(dash_url.find('DASH')) + 4]
-        # # the dash URL is the main URL we need to search for
-        # # height is used to find the best quality of video available
-        # video_url = f'{dash_url}_{height}.mp4'  # this URL will be used to download the video
-        # audio_url = f'{dash_url}_audio.mp4'  # this URL will be used to download the audio part
-
-        # print(video_url)
-        # print(audio_url)
-
 
     # if reddit post is unavailable
     if 'error' in r.text:
@@ -135,6 +120,15 @@ def get_post(url, post_type):
         quit()
 
     """ determines the post type"""
+    """
+        possible values for "post_hint" attribute: 
+
+        link  (only examples i've seen:  Imgur)
+        image (for both regular imgs and gifs)
+        hosted:video (reddit video)
+        rich:video (external media embeds like youtube)
+    """
+    """ is_gallery attribute for gallery posts"""
     post_type = json_data["post_hint"] if "post_hint" in json_data else "gallery" if "is_gallery" in json_data else "text"
     print(f'> Post type: {post_type}')
 
@@ -154,7 +148,7 @@ def get_post(url, post_type):
             print("Yes its just a text post.")
 
 
-
+        """ REFERENCED FROM: https://stackoverflow.com/questions/9823936/how-do-i-determine-what-type-of-exception-occurred """
         # except Exception as ex:
         #     template = "An exception of type {0} occurred. Arguments:\n{1!r}"
         #     message = template.format(type(ex).__name__, ex.args)
@@ -165,19 +159,23 @@ def get_post(url, post_type):
     permalink = json_data["permalink"]
     # split so different parts of the url can be used later
     permalink_attr = permalink.split("/")
+    post_id = permalink_attr[4]
+    print(post_id)
     print(permalink_attr)
 
-    """ decide on action depending on post type"""
+
+    # TODO: Implement overwrite protections
+    """ decide on action depending on determined post type"""
     match post_type:
         case "gallery":
             print("This is a gallery post")
-            img_urls = get_gallery_data(json_data["gallery_data"], json_data["media_metadata"], json_data["title"], json_data["subreddit"], permalink_attr[4])
+            img_urls = get_gallery_data(json_data["gallery_data"], json_data["media_metadata"], json_data["title"], json_data["subreddit"], post_id)
             print(img_urls)
         case "text":
             print("This is a regular text post")
         case "image":
             print("This is an image post")
-            result = download_img(json_data["url"], json_data["title"], json_data["subreddit"], False, permalink_attr[4])
+            result = download_img(json_data["url"], json_data["title"], json_data["subreddit"], False, post_id)
             print(result)
         case _:
             # TODO: Change video title according to user config.
@@ -186,7 +184,8 @@ def get_post(url, post_type):
             # call yt-dlp downloader
             ydl_opts = {
                 'logger': YTDLPLogger(),
-                'progress_hooks': [my_hook]
+                'progress_hooks': [my_hook],
+                'outtmpl': f'{json_data["subreddit"]} - {json_data["title"]} [{post_id}].%(ext)s'
             }
             with yt_dlp.YoutubeDL(ydl_opts) as ydl:
                 # help(yt_dlp.YoutubeDL)
@@ -210,18 +209,6 @@ def get_post(url, post_type):
     # else:
     #     print("it failed...")
 
-    """
-        possible values for "post_hint" attribute: 
-        
-        link  (only examples i've seen:  Imgur)
-        image (for both regular imgs and gifs)
-        hosted:video (reddit video)
-        rich:video (external media embeds)
-        
-        
-    """
-
-    """ is_gallery attribute for gallery posts"""
 
 
 # function to download image
@@ -230,12 +217,12 @@ def download_img(img_url, img_name, subreddit, enable_gallery_subfolder, post_id
 
     # getting the image type extension
     img_type = img_url.split(".")[-1]
-    img_name = f'{subreddit}-{img_name} [{post_id}].{img_type}'
+    img_name = f'{subreddit} - {img_name} [{post_id}].{img_type}'
     full_path = img_name
     to_create = False
     if enable_gallery_subfolder:
         print("GALLERY SUBFOLDER ENABLED")
-        full_path = f'./{subreddit}-{post_title} [{post_id}]/{img_name}'
+        full_path = f'./{subreddit} - {post_title} [{post_id}]/{img_name}'
         to_create = True
 
     # downloading image to disk
@@ -243,7 +230,7 @@ def download_img(img_url, img_name, subreddit, enable_gallery_subfolder, post_id
         print(f'full path: {full_path}')
         with safe_open_wb(full_path, to_create) as f:
             shutil.copyfileobj(response.raw, f)
-        print('Image sucessfully Downloaded: ', img_name)
+        print('Image successfully Downloaded: ', img_name)
         return "Success"
     else:
         print("Couldn't retrieve the image!!")
@@ -311,7 +298,7 @@ if __name__ == '__main__':
     print('PyCharm')
 
     num_of_args = len(command_line_args)
-    get_post(remove_query_string(command_line_args[1]), 'gif')
+    get_post(remove_query_string(command_line_args[1]))
     # for index, url in enumerate(reddit_post_urls):
     #     if num_of_args < 2:
     #         show_help()
