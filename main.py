@@ -11,8 +11,16 @@ import yt_dlp
 from bs4 import BeautifulSoup
 import urllib.parse
 from requests import get, exceptions
-from sys import argv as command_line_args
+from sys import argv
 from logger import YTDLPLogger
+
+# Attempt to read any configuration settings
+try:
+    from user_config import ROOT_DOWNLOADS_FOLDER
+    print(ROOT_DOWNLOADS_FOLDER)
+except ImportError:
+    print("Import config attempt failed!")
+    print("Setting default values...")
 
 """ 
 IMPORTANT:
@@ -160,6 +168,8 @@ def get_post(url):
     # split so different parts of the url can be used later
     permalink_attr = permalink.split("/")
     post_id = permalink_attr[4]
+    readable_name = permalink_attr[5]
+    readable_name = readable_name.replace("_", " ")
     print(post_id)
     print(permalink_attr)
 
@@ -169,29 +179,38 @@ def get_post(url):
     match post_type:
         case "gallery":
             print("This is a gallery post")
-            img_urls = get_gallery_data(json_data["gallery_data"], json_data["media_metadata"], json_data["title"], json_data["subreddit"], post_id)
+            img_urls = get_gallery_data(json_data["gallery_data"], json_data["media_metadata"], readable_name, json_data["subreddit"], post_id)
             print(img_urls)
         case "text":
             print("This is a regular text post")
         case "image":
             print("This is an image post")
-            result = download_img(json_data["url"], json_data["title"], json_data["subreddit"], False, post_id)
+            result = download_img(json_data["url"], readable_name, json_data["subreddit"], False, post_id)
             print(result)
         case _:
-            # TODO: Change video title according to user config.
-            # TODO: account for subreddit directory
-            print("Regular media post. Downloading...")
-            # call yt-dlp downloader
-            ydl_opts = {
-                'logger': YTDLPLogger(),
-                'progress_hooks': [my_hook],
-                'outtmpl': f'{json_data["subreddit"]} - {json_data["title"]} [{post_id}].%(ext)s'
-            }
-            with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-                # help(yt_dlp.YoutubeDL)
-                ydl.download(url)
-                # info = ydl.extract_info(url, download=False)
-                # print(json.dumps(ydl.sanitize_info(info)))
+
+            # TODO: Check if it is an imgur gallery
+            # TODO: implement gallery-dl integration
+            # if the embedded link is determined to be an imgur gallery, redDL will exit
+            if json_data["domain"] == "imgur.com" and ("gallery" or "/a/" in url):
+                print("WARNING: This is an Imgur album. Not currently supported by redDL. Exiting...")
+
+
+            else:
+                # TODO: Change video title according to user config.
+                # TODO: account for subreddit directory
+                print("Regular media post. Downloading...")
+                # call yt-dlp downloader
+                ydl_opts = {
+                    'logger': YTDLPLogger(),
+                    'progress_hooks': [my_hook],
+                    'outtmpl': f'{json_data["subreddit"]} - {readable_name} [{post_id}].%(ext)s'
+                }
+                with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+                    # help(yt_dlp.YoutubeDL)
+                    ydl.download(url)
+                    # info = ydl.extract_info(url, download=False)
+                    # print(json.dumps(ydl.sanitize_info(info)))
 
 
     ytdlp_command = [
@@ -283,7 +302,7 @@ def my_hook(d):
 
 def show_help():
     print(f"""
-        Usage : {os.path.basename(command_line_args[0])} <URL_TO_POST_WITH_VIDEO>
+        Usage : {os.path.basename(argv[0])} <URL_TO_POST_WITH_VIDEO>
     """)
 
 # Used to remove any query portion of the url before doing anything since it can cause problems later on.
@@ -297,8 +316,8 @@ def remove_query_string(url):
 if __name__ == '__main__':
     print('PyCharm')
 
-    num_of_args = len(command_line_args)
-    get_post(remove_query_string(command_line_args[1]))
+    num_of_args = len(argv)
+    get_post(remove_query_string(argv[1]))
     # for index, url in enumerate(reddit_post_urls):
     #     if num_of_args < 2:
     #         show_help()
