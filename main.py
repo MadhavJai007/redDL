@@ -5,65 +5,166 @@ import subprocess
 import errno
 import yt_dlp
 from bs4 import BeautifulSoup
-import gallery_dl
+from gallery_dl import config, job
 import urllib.parse
 from requests import get, exceptions
 from sys import argv
+from dotenv import load_dotenv
 from logger import YTDLPLogger
 
 # TODO: config settings
 # Attempt to read any configuration settings
 try:
-    from user_config import ROOT_DOWNLOADS_FOLDER
-    print(ROOT_DOWNLOADS_FOLDER)
+    # importing root down
+    from user_config import ROOT_DOWNLOADS_FOLDER as user_root_path
+    print("> Custom root download path in user config.")
+    print("> Validating path...")
+
+    if isinstance(user_root_path, str) and len(user_root_path.strip()) > 0:
+        # check if path can be used as a directory
+        if os.path.isdir(user_root_path):
+            print(f'> Directory exists...')
+            root_download_path = os.path.abspath(user_root_path)
+            print(f'> User configured download directory: {root_download_path}\n')
+        else:
+            # create the directoruser_root_path if they dont exist
+            print(f'> Directory does not exist. Creating..')
+            os.makedirs(user_root_path)
+            root_download_path = os.path.abspath(user_root_path)
+            print(f'> Created user configured download directory: {root_download_path}\n')
+    else:
+        # raise exception if invalid path string in config file
+        raise Exception("Invalid Path. Falling back to default download path in user profile.")
 except ImportError:
-    print("Import config attempt failed!")
-    print("Setting default values...")
+    print("> Import config attempt failed!")
+    print("> Setting default values...")
 
-gallery_dl_config = gallery_dl.config
-gallery_dl_config.load()
-gallery_dl_config.set(("extractor"), "base-directory", "D:/Gg/Media/")
-gallery_dl_config.set("extractor", "reddit", {
-			"#": "only spawn child extractors for links to specific sites",
-            "whitelist": ["imgur", "redgifs", "gfycat"],
+    # setting a default downloads directory in user profile director
+    user_profile_path = os.environ.get('USERPROFILE')
+    default_download_folder = os.path.dirname("./redDL downloads/")
+    root_download_path = os.path.abspath(os.path.join(user_profile_path, default_download_folder))
+    print(f'> Finalized default root downloads folder: {root_download_path}\n')
 
-            "#": "put files from child extractors into the reddit directory",
-            "parent-directory": True,
+# user configurable download path (user_config.py)
+# print(f'> Confirmed Root download folder: {Home_download_path}')
 
-            "#": "transfer metadata to any child extractor as '_reddit'",
-            "parent-metadata": "_reddit",
-			"submission": {
-				"directory": {
-					"locals().get('is_gallery')": ["rddt_{subreddit} - {title[:160]} [{id}]"],
-					""                          : []
-				},
-				"filename": {
-					"locals().get('is_gallery')": "rddt_{subreddit} - {num:?//>02}. {title[:160]} [{id}].{extension}",
-					"": "rddoot_{subreddit} - {title[:160]} [{id}].{extension}"
-				}
-			},
-            "comments": 0,
-            "morecomments": False,
-            "date-min": 0,
-            "date-max": 253402210800,
-            "date-format": "%Y-%m-%dT%H:%M:%S",
-            "id-min": None,
-            "id-max": None,
-            "recursion": 0,
-            "videos": True
-        })
-gallery_dl_config.set("extractor", "imgur", {
-			"#": "use different directory and filename formats when coming from a reddit post",
-            "directory":
-            {
-                "'_reddit' in locals()": []
+
+def set_up_gallery_dl(base_dir):
+
+    # loading any available env files
+    load_dotenv()
+    # gallery-dl configuration
+    config.load()  # load default config files
+    # Todo: put all the extractor properties in a different file
+    config.set(("extractor",), "base-directory", base_dir)
+    config.set(("extractor",), "reddit", {
+        "#": "only spawn child extractors for links to specific sites",
+        "whitelist": ["imgur", "redgifs", "gfycat"],
+
+        "#": "put files from child extractors into the reddit directory",
+        "parent-directory": True,
+
+        "#": "transfer metadata to any child extractor as '_reddit'",
+        "parent-metadata": "_reddit",
+        "submission": {
+            "directory": {
+                "locals().get('is_gallery')": ["{category}_{subreddit} - {title[:160]} [{id}]"],
+                "": []
             },
-            "filename":
-            {
-                "'_reddit' in locals()": "rddt_{_reddit[subreddit]} - {_reddit[title]} [{_reddit[id]}].{extension}",
-                ""                     : "imgur_ {title} [{id}].{extension}"
+            "filename": {
+                "locals().get('is_gallery')": "{category}_{subreddit} - {num:?//>02}. {title[:160]} [{id}].{extension}",
+                "": "{category}_{subreddit} - {num:?//>02} {title[:160]} [{id}].{extension}"
             }
-        })
+        },
+        "comments": 0,
+        "morecomments": False,
+        "date-min": 0,
+        "date-max": 253402210800,
+        "date-format": "%Y-%m-%dT%H:%M:%S",
+        "id-min": None,
+        "id-max": None,
+        "recursion": 0,
+        "videos": True
+    })
+    config.set(("extractor",), "imgur", {
+        "keyword": "",
+        "#": "use different directory and filename formats when coming from a reddit post",
+        "album": {
+            "directory":
+                {
+                    "'_reddit' in locals()": ["reddit_{_reddit[subreddit]} - {_reddit[title][:160]} [{_reddit[id]}]"],
+                    # "'album' in locals()": ["albums"],
+                    "": ["{category} - {empty|album[title][:160]} [{album[id]}]"]
+                },
+            "filename":
+                {
+                    "'_reddit' in locals()": "reddit_{_reddit[subreddit]} - {num:?//>02}. {_reddit[title][:160]} [{_reddit[id]}].{extension}",
+                    "": "{category} - {num:?//>02}. {title[:160]} [{id}].{extension}"
+                },
+        },
+        "directory":
+            {
+                "'_reddit' in locals()": [],
+                # "'album' in locals()": ["albums"],
+                "": []
+            },
+        "filename":
+            {
+                "'_reddit' in locals()": "reddit_{_reddit[subreddit]} - {num:?//>02}. {_reddit[title][:160]} [{_reddit[id]}].{extension}",
+                "": "{category} - {num:?//>02}. {title[:160]} [{id}].{extension}"
+            },
+        "mp4": True
+    })
+    config.set(("extractor",), "gfycat", {
+        "#": "use different directory and filename formats when coming from a reddit post",
+        "directory": {
+            "'_reddit' in locals()": [],
+            "": []
+         },
+        "filename":{
+            "'_reddit' in locals()": "reddit_{_reddit[subreddit]} - {num:?//>02}. {_reddit[title][:160]} [{_reddit[id]}].{extension}",
+            "": "{category}_@{username} - {title[:160]} [{gfyId}].{extension}"
+        }
+    })
+    config.set(("extractor",), "redgifs", {
+        "#": "use different directory and filename formats when coming from a reddit post",
+        "directory": {
+            "'_reddit' in locals()": [],
+            "": []
+        },
+        "filename": {
+            "'_reddit' in locals()": "reddit_{_reddit[subreddit]} - {num:?//>02}. {_reddit[title][:160]} [{_reddit[id]}].{extension}",
+            "": "{category}_@{userName} - {filename}.{extension}"
+        }
+    })
+    config.set(("extractor",), "twitter", {
+        "#": "use different directory and filename formats when coming from a reddit post",
+        "username": os.getenv('TWITTER_USERNAME'),
+        "password": os.getenv('TWITTER_PASSWORD'),
+        "directory":  [],
+        "filename": "{category}_@{user[name]} - {num:?//>02} {empty|content[:160]} [{tweet_id}].{extension}"
+    })
+    config.set(("extractor",), "instagram", {
+        "keyword": "",
+        "cookies": "./cookies-instagram.txt",
+        "stories": {
+            "directory": [],
+            "filename": "{category}_@{username} - {num:?//>02}. {highlight_title} [{post_shortcode}].{extension}"
+        },
+        "highlights": {
+            "directory": ["highlights"],
+            "filename": "{category}_@{username} - {num:?//>02}. {highlight_title} [{post_shortcode}].{extension}"
+        },
+        "posts": {
+            "directory": [],
+            "filename": "{category}_@{username} - {num:?//>02}. {description[:160]} ({location_slug}) [{post_shortcode}].{extension}"
+        },
+        "reels": {
+            "directory": [],
+            "filename": "{category}_@{username} - {num:?//>02}. {description[:160]} ({location_slug}) [{post_shortcode}].{extension}"
+        },
+        "videos": True
+    })
 
 image_extensions = ["jpg", "png", "jpeg", "gif"]
 
@@ -330,9 +431,7 @@ def my_hook(d):
         print('Uh oh. Stinky!')
 
 def show_help():
-    print(f"""
-        Usage : {os.path.basename(argv[0])} <URL_TO_POST_WITH_VIDEO>
-    """)
+    print(f'> Please use a command with atleast one argument! Like this: {os.path.basename(argv[0])} <URL_TO_POST_WITH_MEDIA>')
 
 # Used to remove any query portion of the url before doing anything since it can cause problems later on.
 def remove_query_string(url):
@@ -341,16 +440,55 @@ def remove_query_string(url):
         return url[:(url.find('?'))]
     return url
 
+# using yt-dl specifically for tiktok videos
+def download_tiktok(url):
+    # call yt-dlp downloader
+
+    domain_subfolder_enabled = True
+    subfolder = os.path.dirname("./tiktok downloads/")
+    output_directory = os.path.abspath(user_root_path)
+    #TODO: Append any user specified subfolders to output_directory path
+    if(domain_subfolder_enabled):
+        output_directory = os.path.abspath(os.path.join(user_root_path, subfolder))
+    ydl_opts = {
+        'logger': YTDLPLogger(),
+        'progress_hooks': [my_hook],
+        'outtmpl': f'{output_directory}/%(extractor)s_@%(uploader)s - %(title)s (%(track)s - %(artist)s) [%(id)s].%(ext)s'
+    }
+    ydl = yt_dlp.YoutubeDL(ydl_opts)
+    try:
+        # help(yt_dlp.YoutubeDL)
+        ydl.download(url)
+        # info = ydl.extract_info(url, download=False)
+        # print(json.dumps(ydl.sanitize_info(info)))
+        print('> Downloaded succesfully!')
+        # break
+    except yt_dlp.DownloadError as e:
+        print(e)
+
 # Press the green button in the gutter to run the script.
 if __name__ == '__main__':
     print('PyCharm')
 
+    set_up_gallery_dl(root_download_path)
     num_of_args = len(argv)
     # parsed = json.dumps(gallery_dl_config.get("extractor", "base-directory"), indent=2 )
     # print(parsed)
-    # resss = gallery_dl.job.UrlJob("https://imgur.com/a/g1RZCjG")
-    # resss.run()
-    get_post(remove_query_string(argv[1]))
+
+    sanitized_url = remove_query_string(argv[1])
+
+    if(num_of_args < 2):
+        show_help()
+        quit()
+    parsed_url = urllib.parse.urlparse(sanitized_url)
+    domain = parsed_url.netloc
+    if 'tiktok.com' in domain:
+        print(f'> Using yt-dl for tiktok')
+        download_tiktok(sanitized_url)
+    else:
+        resss = job.DownloadJob(sanitized_url)
+        resss.run()
+    # get_post(remove_query_string(argv[1]))
     # for index, url in enumerate(reddit_post_urls):
     #     if num_of_args < 2:
     #         show_help()
