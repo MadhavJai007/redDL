@@ -37,11 +37,16 @@ def safe_open_wb(path, to_create):
 
 
 def my_hook(d):
+    progress_milestones = ["0.0%", "25.0%", "50.0%", "99.0%"]
+
     if d['status'] == "downloading":
-        if d.get('eta') is not None:
-            print(f'> ETA: {d["_eta_str"]} || Speed: {d["_speed_str"]} || Downloaded: {d["_downloaded_bytes_str"]} || Progress: {d["_percent_str"]}')
+        print(f'> ETA: {d["_eta_str"]} || Speed: {d["_speed_str"]} || Downloaded: {d["_downloaded_bytes_str"]} || Progress: {d["_percent_str"]}')
+        # if d.get('eta') is not None:
+            # if d["_percent_str"] in progress_milestones:
+            #     print(f'> ETA: {d["_eta_str"]} || Speed: {d["_speed_str"]} || Downloaded: {d["_downloaded_bytes_str"]} || Progress: {d["_percent_str"]}')
     elif d['status'] == 'finished':
         print('Finished downloading, now post-processing...')
+        print(f"File name: {d.get('filename')}")
     elif d['status'] == 'error':
         print('Uh oh. Stinky!')
 
@@ -59,9 +64,9 @@ def remove_query_string(url):
 def get_args():
     arg_parser = argparse.ArgumentParser()
     arg_parser.add_argument("url", type=str, help="url of the media you want to download")
-    arg_parser.add_argument("-p", "--path", help="Base directory", default="./", required=False)
+    arg_parser.add_argument("-p", "--path", help="Base download directory", default="./", required=False)
     arg_parser.add_argument("--ds", "--domain_subfolder", action="store_true", default=False,
-                            help="Including this flag means the download will be stored in the website's subfolder")
+                            help="Including this flag means the download will be stored in a subfolder titled with the website's name")
     args = arg_parser.parse_args()
     # print(f'args = {args}')
     # print(f'args.path={args.path}')
@@ -168,7 +173,7 @@ def config_instagram_download(path, include_domain_subfolder):
 
     config.set(("extractor",), "instagram", {
         "keyword": "",
-        "cookies": "./cookies-instagram.txt",
+        "cookies": "./cookies-instagram.txts",
         "stories": {
             "directory": subdirectories+["stories"] if include_domain_subfolder else subdirectories,
             "filename": highlight_file_name
@@ -307,6 +312,9 @@ def download_yt_dlp_generic(url, path, include_subfolder):
                 output_directory = os.path.abspath(os.path.join(path, subfolder))
             ydl_opts = {
                 'logger': YTDLPLogger(),
+
+                # 'progress_template': 'download',
+                'quiet': False,
                 # 'progress_hooks': [my_hook],
                 'outtmpl': f'{output_directory}/%(extractor)s - %(title).120s.. [%(id)s].%(ext)s'
             }
@@ -344,7 +352,10 @@ def match_domain(url, domain_list):
             domain_without_star = domain[1:]
             main_domain = domain_without_star.split('.')[0]
             return main_domain
-    return None
+    if 'tiktok' in domain:
+        return 'tiktok'
+    else:
+        return None
 
 
 def gallery_dl_download(url):
@@ -354,6 +365,7 @@ def gallery_dl_download(url):
 def gallery_dl_get_info(url):
     gallery_dl_data_job = job.DataJob(url)
     # gallery_dl_data_job.run()
+
     extracted_info = gallery_dl.extractor.find(url)
     for att in dir(extracted_info):
         print(att, getattr(extracted_info,att))
@@ -371,7 +383,6 @@ if __name__ == '__main__':
     print('PyCharm')
 
     args_obj = get_args()
-    print(args_obj)
     arg_download_path = os.path.abspath(args_obj.path)
     include_domain_subfolder = args_obj.ds
     parsed_url = urllib.parse.urlparse(args_obj.url)
@@ -381,12 +392,13 @@ if __name__ == '__main__':
     print("Supported domains : " + str(domains))
 
     matched_domain = match_domain(args_obj.url, domains)
-    print(matched_domain)
+    print(f"Supported domain found: {matched_domain}") if matched_domain else print("Unfamiliar domain found...")
     if matched_domain:
         match matched_domain:
             case "reddit":
                 config_reddit_download(arg_download_path, include_domain_subfolder)
                 gallery_dl_download(args_obj.url)
+                # gallery_dl_get_info(args_obj.url)
             case "twitter":
                 config_twitter_download(arg_download_path, include_domain_subfolder)
                 gallery_dl_download(args_obj.url)
@@ -403,8 +415,10 @@ if __name__ == '__main__':
             case other:
                 print("???")
     elif 'tiktok.com' in domain:
+        # using a method that uses yt-dlp to download tiktok videos
         print(f'> Using yt-dl for tiktok')
         download_tiktok(args_obj.url, arg_download_path, include_domain_subfolder)
     else:
-        print(f'> Using generic fallback download method')
+        # using a generic download method that attempts to use gallery-dls/yt-dlp's default configuration for that site.
+        print(f'> Using fallback download method')
         download_yt_dlp_generic(args_obj.url, arg_download_path, include_domain_subfolder)
