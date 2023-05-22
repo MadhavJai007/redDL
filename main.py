@@ -13,7 +13,7 @@ import urllib.parse
 from requests import get, exceptions
 import argparse
 from sys import argv
-from dotenv import load_dotenv
+from dotenv import dotenv_values
 from logger import YTDLPLogger
 
 # TODO: config settings
@@ -67,6 +67,7 @@ def get_args():
     arg_parser.add_argument("-p", "--path", help="Base download directory", default="./", required=False)
     arg_parser.add_argument("--ds", "--domain_subfolder", action="store_true", default=False,
                             help="Including this flag means the download will be stored in a subfolder titled with the website's name")
+    arg_parser.add_argument("-f", "--filename", help="Use this flag if you want a custom file name", default="no_custom", required=False )
     args = arg_parser.parse_args()
     # print(f'args = {args}')
     # print(f'args.path={args.path}')
@@ -78,7 +79,13 @@ def get_args():
     return args
 
 
-def config_reddit_download(path, include_domain_subfolder):
+def get_env_variables(key):
+    try:
+        return dotenv_values(".env")[key]
+    except KeyError:
+        raise Exception("Credentials missing in '.env' configuration! Ensure the .env file is configured correctly!")
+
+def config_reddit_download(path, include_domain_subfolder ):
 
     config.set(("extractor",), "base-directory", os.path.abspath(path))
 
@@ -141,6 +148,15 @@ def config_reddit_download(path, include_domain_subfolder):
     config.set(("extractor", "gfycat", "filename",), "'_reddit' in locals()", imgur_gfycat_embed_filename)
 
 def config_twitter_download(path, include_domain_subfolder):
+
+    # loading twitter account credentials from env file
+    try:
+        twt_usrname = get_env_variables('TWITTER_USERNAME')
+        twt_password = get_env_variables('TWITTER_PASSWORD')
+    except Exception as e:
+        print(e)
+        quit()
+
     # setting path from argument
     config.set(("extractor",), "base-directory", os.path.abspath(path))
 
@@ -152,8 +168,8 @@ def config_twitter_download(path, include_domain_subfolder):
     # configure twitter download path and filename
     config.set(("extractor",), "twitter", {
         "#": "use different directory and filename formats when coming from a reddit post",
-        "username": os.getenv('TWITTER_USERNAME'),
-        "password": os.getenv('TWITTER_PASSWORD'),
+        "username": twt_usrname,
+        "password": twt_password,
         "directory": subdirectories,
         "filename": "{category}_@{user[name]} - {num:?//>02} {empty|content[:160]} [{tweet_id}].{extension}"
     })
@@ -385,6 +401,13 @@ if __name__ == '__main__':
     args_obj = get_args()
     arg_download_path = os.path.abspath(args_obj.path)
     include_domain_subfolder = args_obj.ds
+
+    """Checking if download using custom output name"""
+    custom_file_output = args_obj.filename
+    is_custom_name = False
+    if custom_file_output != "no_custom":
+        is_custom_name = True
+
     parsed_url = urllib.parse.urlparse(args_obj.url)
     domain = parsed_url.netloc
 
@@ -396,7 +419,7 @@ if __name__ == '__main__':
     if matched_domain:
         match matched_domain:
             case "reddit":
-                config_reddit_download(arg_download_path, include_domain_subfolder)
+                config_reddit_download(arg_download_path, include_domain_subfolder )
                 gallery_dl_download(args_obj.url)
                 # gallery_dl_get_info(args_obj.url)
             case "twitter":
