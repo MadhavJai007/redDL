@@ -1,5 +1,7 @@
 import json
 import os
+import io
+import sys
 import shutil
 import subprocess
 import errno
@@ -10,6 +12,7 @@ from bs4 import BeautifulSoup
 from gallery_dl import config, job
 import gallery_dl
 import urllib.parse
+import urllib.error
 from requests import get, exceptions
 import argparse
 from sys import argv
@@ -67,7 +70,7 @@ def get_args():
     arg_parser.add_argument("-p", "--path", help="Base download directory", default="./", required=False)
     arg_parser.add_argument("--ds", "--domain_subfolder", action="store_true", default=False,
                             help="Including this flag means the download will be stored in a subfolder titled with the website's name")
-    arg_parser.add_argument("-f", "--filename", help="Use this flag if you want a custom file name", default="no_custom", required=False )
+    arg_parser.add_argument("-f", "--filename", help="Use this flag if you want a custom file name", default=None, required=False )
     args = arg_parser.parse_args()
     # print(f'args = {args}')
     # print(f'args.path={args.path}')
@@ -85,7 +88,7 @@ def get_env_variables(key):
     except KeyError:
         raise Exception("Credentials missing in '.env' configuration! Ensure the .env file is configured correctly!")
 
-def config_reddit_download(path, include_domain_subfolder ):
+def config_reddit_download(path, include_domain_subfolder, custom_file_name):
 
     config.set(("extractor",), "base-directory", os.path.abspath(path))
 
@@ -97,20 +100,25 @@ def config_reddit_download(path, include_domain_subfolder ):
         "imgur_embed_subdirectories": [],
         "gfycat_embed_subdirectories": []
     }
+
+    # TODO: change this according to config
     gallery_post_subfolder_name = "{category}_{subreddit} - {title[:120]}.. [{id}]"
     imgur_gallery_subfolder_name = "reddit_{_reddit[subreddit]} - {_reddit[title][:120]}... [{_reddit[id]}]"
-    reddit_submission_filename = "{category}_{subreddit} - {num:?//>02} {title[:120]}.. [{id}].{extension}"
-    imgur_gfycat_embed_filename = "reddit_{_reddit[subreddit]} - {num:?//>02}. {_reddit[title][:120]}... [{_reddit[id]}].{extension}"
+    reddit_submission_filename = "{category}_{subreddit} - {num:?//>02} {title[:120]}... [{id}].{extension}" if not custom_file_name else '%s.{extension}' % (custom_file_name)
+    imgur_gfycat_embed_filename = "reddit_{_reddit[subreddit]} - {num:?//>02}. {_reddit[title][:120]}... [{_reddit[id]}].{extension}" if not custom_file_name else '%s.{extension}' % (custom_file_name)
 
+    # TODO: configure according to user config
     if include_domain_subfolder:
         for x in subdirectories:
+            # skipping these two otherwise gallery-dl makes a duplicate subfolder
             if x.startswith("imgur") or x.startswith("gfycat"):
                 continue
             subdirectories[x].append("reddit")
 
-    # TODO: another if statment for subreddit domain folder
+    # TODO: another if statment for subreddit folder
 
     # for posts that have multiple images, make another subfolder
+    # TODO: Only if configured in config file
     subdirectories["submission_gallery_subdirectories"].append(gallery_post_subfolder_name)
     subdirectories["imgur_gallery_subdirectories"].append(imgur_gallery_subfolder_name)
 
@@ -165,13 +173,17 @@ def config_twitter_download(path, include_domain_subfolder):
     if include_domain_subfolder:
         subdirectories.append("twitter")
 
+    file_str = "{category}_@{user[name]} - {num:?//>02} {empty|content[:160]} [{tweet_id}].{extension}"
+
     # configure twitter download path and filename
     config.set(("extractor",), "twitter", {
-        "#": "use different directory and filename formats when coming from a reddit post",
         "username": twt_usrname,
         "password": twt_password,
-        "directory": subdirectories,
-        "filename": "{category}_@{user[name]} - {num:?//>02} {empty|content[:160]} [{tweet_id}].{extension}"
+        "directory": {
+                "count > 1": subdirectories + [file_str],
+                "": subdirectories
+        },
+        "filename": file_str
     })
 
 def config_instagram_download(path, include_domain_subfolder):
@@ -191,29 +203,46 @@ def config_instagram_download(path, include_domain_subfolder):
         "keyword": "",
         "cookies": "./cookies-instagram.txts",
         "stories": {
-            "directory": subdirectories+["stories"] if include_domain_subfolder else subdirectories,
-            "filename": highlight_file_name
-        },
-        "highlights": {
-            "directory": subdirectories+["highlights"] if include_domain_subfolder else subdirectories,
+            "directory": {
+                "count > 1": subdirectories + (["stories"] if include_domain_subfolder else subdirectories) + [highlight_file_name],
+                "": subdirectories+(["stories"] if include_domain_subfolder else subdirectories)
+            },
             "filename": story_file_name
         },
+        "highlights": {
+            "directory": {
+                "count > 1": subdirectories + (["highlights"] if include_domain_subfolder else subdirectories) + [highlight_file_name],
+                "": subdirectories+(["highlights"] if include_domain_subfolder else subdirectories)
+            },
+            "filename": highlight_file_name
+        },
         "posts": {
-            "directory": subdirectories,
+            "directory": {
+                "count > 1": subdirectories + [post_file_name],
+                "": subdirectories
+            },
             "filename": post_file_name
         },
         "reels": {
-            "directory": subdirectories,
+            "directory": {
+                "count > 1": subdirectories + [post_file_name],
+                "": subdirectories
+            },
             "filename": post_file_name
         },
-        "directory": subdirectories,
+        "directory": {
+            "count > 1": subdirectories + [post_file_name],
+            "": subdirectories
+        },
         "filename": post_file_name,
         "videos": True
     })
 
-def config_imgur_download(path, include_domain_subfolder):
+def config_imgur_download(path, include_domain_subfolder, url):
     # setting path from argument
     config.set(("extractor",), "base-directory", os.path.abspath(path))
+
+    # image_count = extract_keyword_attr(url, "count")
 
     """ If the the ds flag is not included then dont make a subfolder (otherwise default behavior)"""
     subdirectories = []
@@ -226,13 +255,55 @@ def config_imgur_download(path, include_domain_subfolder):
         "keyword": "",
         "#": "use different directory and filename formats when coming from a reddit post",
         "album": {
-            "directory": subdirectories + ["{category} - {empty|album[title][:120]}... [{album[id]}]"],
+            "directory": {
+                "album['image_count'] > 1": subdirectories + ["{category} - {empty|album[title][:120]}... [{album[id]}]"],
+                "": subdirectories
+            },
+            # subdirectories + ["{category} - {empty|album[title][:120]}... [{album[id]}]"], # if int(image_count) > 1 else [],
             "filename": imgur_filename
         },
         "directory": subdirectories,
         "filename": imgur_filename,
         "mp4": True
     })
+
+
+def extract_keyword_attr(url, attr):
+    # Redirect the standard output to a buffer
+    stdout_buffer = io.StringIO()
+    sys.stdout = stdout_buffer
+    datajob = job.KeywordJob(url)
+    datajob.run()
+    # Restore the standard output
+    sys.stdout = sys.__stdout__
+    # Get the printed output from the buffer
+    printed_output = stdout_buffer.getvalue()
+
+    # Split the captured output into lines
+    lines = printed_output.strip().split('\n')
+    # Initialize the JSON object
+    keywords_obj = {}
+    # Iterate over the lines and extract key-value pairs
+    current_section = None
+    for i, line in enumerate(lines):
+        if line.endswith(':'):
+            # Found a new section
+            current_section = line[:-1].strip()
+            keywords_obj[current_section] = {}
+        elif "-----" in line:
+            continue
+        elif line.startswith(" "):
+            continue
+        else:
+            if current_section:
+                # make a key-value pair
+                keywords_obj[current_section][line.strip()] = lines[i + 1].strip()
+    # Convert the JSON object to a JSON string
+    json_string = json.dumps(keywords_obj, indent=4)
+    # Print the JSON string
+    print(json_string)
+    return keywords_obj[attr]
+
 
 def config_gfycat_download(path, include_domain_subfolder):
     # setting path from argument
@@ -286,13 +357,6 @@ def download_yt_dlp_generic(url, path, include_subfolder):
 
     try:
         # setting path from argument
-        """ Following block of code not needed since gallery-dl by default creates a subfolder to categorize by websites"""
-        # subfolder = os.path.dirname(f'./umm/')
-        # if(include_subfolder):
-        #     config.set(("extractor",), "base-directory", os.path.abspath(os.path.join(path, subfolder)))
-        # else:
-        #     config.set(("extractor",), "base-directory", os.path.abspath(path))
-
         config.set(("extractor",), "base-directory", os.path.abspath(path))
         """ If the the ds flag is not included then dont make a subfolder (otherwise default behavior)"""
         if not include_subfolder:
@@ -375,18 +439,21 @@ def match_domain(url, domain_list):
 
 
 def gallery_dl_download(url):
-    gallery_dl_dowbload_job = job.DownloadJob(url)
-    gallery_dl_dowbload_job.run()
-
+    try:
+        gallery_dl_dowbload_job = job.DownloadJob(url)
+        gallery_dl_dowbload_job.run()
+    except Exception as error:
+        print("Something went wrong!")
+        print(error)
 def gallery_dl_get_info(url):
-    gallery_dl_data_job = job.DataJob(url)
-    # gallery_dl_data_job.run()
+    keyword_data = job.KeywordJob(url)
+    keyword_data.run()
 
-    extracted_info = gallery_dl.extractor.find(url)
-    for att in dir(extracted_info):
-        print(att, getattr(extracted_info,att))
-    for x in extracted_info:
-        print(x)
+    # extracted_info = gallery_dl.extractor.find(url)
+    # for att in dir(extracted_info):
+    #     print(att, getattr(extracted_info,att))
+    # for x in extracted_info:
+    #     print(x)
 
 def Convert(tup):
     dictionary = dict((key, value) for key, value in tup)
@@ -401,14 +468,9 @@ if __name__ == '__main__':
     args_obj = get_args()
     arg_download_path = os.path.abspath(args_obj.path)
     include_domain_subfolder = args_obj.ds
+    custom_file_name = args_obj.filename
 
-    """Checking if download using custom output name"""
-    custom_file_output = args_obj.filename
-    is_custom_name = False
-    if custom_file_output != "no_custom":
-        is_custom_name = True
-
-    parsed_url = urllib.parse.urlparse(args_obj.url)
+    parsed_url  = urllib.parse.urlparse(args_obj.url)
     domain = parsed_url.netloc
 
     domains = ['*reddit.com', '*twitter.com', '*instagram.com', '*imgur.com', '*gfycat.com']
@@ -419,18 +481,19 @@ if __name__ == '__main__':
     if matched_domain:
         match matched_domain:
             case "reddit":
-                config_reddit_download(arg_download_path, include_domain_subfolder )
+                config_reddit_download(arg_download_path, include_domain_subfolder, custom_file_name)
                 gallery_dl_download(args_obj.url)
                 # gallery_dl_get_info(args_obj.url)
             case "twitter":
                 config_twitter_download(arg_download_path, include_domain_subfolder)
                 gallery_dl_download(args_obj.url)
+                # gallery_dl_get_info(args_obj.url)
             case "instagram":
                 config_instagram_download(arg_download_path, include_domain_subfolder)
                 gallery_dl_download(args_obj.url)
                 # gallery_dl_get_info(args_obj.url)
             case "imgur":
-                config_imgur_download(arg_download_path, include_domain_subfolder)
+                config_imgur_download(arg_download_path, include_domain_subfolder, args_obj.url)
                 gallery_dl_download(args_obj.url)
             case "gfycat":
                 config_gfycat_download(arg_download_path, include_domain_subfolder)
