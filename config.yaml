@@ -1,0 +1,68 @@
+
+
+mainArguments:
+  # base download folder. Pick a directory and put it in double quotes. change any "\" to "/"
+  rootDownloadFolder: "./redDL"
+
+  # subfolders for each website. true or false
+  websiteSubfolder : true
+
+  # make a subreddit subfolder for reddit downloads. true or false
+  subredditSubfolder : true
+
+  # download posts with multiple images into subfolder (same name as file). true or false
+  multipleMediaSubfolder: true
+
+  # dedicated folder for instagram stories. true or false
+  igStoriesSubfolder: true
+
+  # dedicated folder for instagram highlights. true or false
+  igHighlightSubfolder: true
+
+
+
+#  You can use variables for output strings. Some are exclusive to a website.
+#  Explanation of variables can be found in documentation: INSERT LINK HERE
+#  Here are the variables supported for each site
+
+#  1. Common ones for any website:
+#    {category} : The website name,
+#    {num:?//>02} : when multiple images are there, number them
+#  2. Reddit (uses gallery-dl):
+#    {subreddit},
+#    {title[:120]} : (post title. capped at 120 characters),
+#    {id} : (post's id)
+#  3. Twitter (uses gallery-dl):
+#     {author[name]}: tweet author's @ handle
+#     {empty|content[:160]} : tweet text or just "empty" if no text
+#     {tweet_id} : post's id
+#  4. Instagram (uses gallery-dl):
+#     {username}: user's @ handle
+#     {highlight_title}: IG highlight title
+#     {date}: date
+#     {description[:120]} : Post's caption (120 character cap)
+#     {post_shortcode} : post's id
+#     {location_slug} : location tag on post
+#  5. Tiktok (uses yt-dlp):
+#     %(extractor)s : website name
+#     %(uploader)s : @ of tiktok's author
+#     %(title).120s : tiktok caption (120 character cap)
+#     %(track)s : title of tiktok's sound
+#     %(artist)s : artist of tiktok's sound
+#     %(id)s : tiktok id
+
+# Any other website will just use the default name decided by gallery-dl and yt-dlp
+
+
+
+fileOutputStrings:
+  redditOutputString: "{category}_{subreddit} - {num:?//>02} {title[:120]}... [{id}]"
+  twitterOutputString: "{category}_@{author[name]} - {num:?//>02} {empty|content[:160]} [{tweet_id}]"
+  instagramOutputStrings:
+    highlights: "{category}_@{username} - {num:?//>02}. {highlight_title} ({date}) [{post_shortcode}]"
+    story: "{category}_@{username} - {num:?//>02}. Story-({date}) [{post_shortcode}].{extension}"
+    posts: "{category}_@{username} - {num:?//>02}. {description[:120]} ({location_slug}) [{post_shortcode}]"
+  tiktokOutputString: "%(extractor)s_@%(uploader)s - %(title).120s... (%(track)s - %(artist)s) [%(id)s]"
+
+
+
