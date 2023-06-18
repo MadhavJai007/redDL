@@ -327,7 +327,7 @@ def config_instagram_download(path, include_domain_subfolder, include_multiple_m
 
     config.set(("extractor",), "instagram", {
         "keyword": "",
-        "cookies": "./cookies-instagram.txts",
+        "cookies": "./cookies-instagram.txt",
         "stories": {
             "directory": {
                 "count > 1": subdirectories_story + mm_subdirectories_story,
@@ -487,69 +487,27 @@ def download_yt_dlp_generic(url, path, include_subfolder):
     gallery_dl_no_extractor_error = 0
     yt_dlp_no_extractor_error = 0
 
-    try:
-        # setting path from argument
-        config.set(("extractor",), "base-directory", os.path.abspath(path))
-        """ If the the ds flag is not included then dont make a subfolder (otherwise default behavior)"""
-        if not include_subfolder:
-            found_extractor = f'{job.extractor.find(url)}'
-            extractor_name = found_extractor.split('.')[2]
-            config.set(("extractor",), extractor_name, {
-                "#": "customizing path subdirectories",
-                "directory": {
-                    "": []
-                }
-            })
+    # setting path from argument
+    config.set(("extractor",), "base-directory", os.path.abspath(path))
+    config.set(("extractor",), "ytdl",
+               {
+                   "enabled": True,
 
-        # run the download job
-        resss = job.DownloadJob(url)
-        resss.run()
+                   "#": "use yt-dlp instead of youtube-dl",
+                   "module": "yt_dlp",
+                   "directory": ["{extractor}"] if include_subfolder else [],
+                   "filename": {
+                       "": "{extractor} - {title} [{id}].{extension}"
+                   },
+                   "#": "load ytdl options from config file",
+                   "config-file": "./ytdlpconfig.txt"
+               },
 
-    except gallery_dl.exception.NoExtractorError as e:
-        gallery_dl_no_extractor_error = 1
-        print("> No gallery_dl extractor for this url found. Video url maybe?")
-        print(e)
-    except Exception as e:
-        gallery_dl_no_extractor_error = 1
-        print("> Unexpected error. Retrying with yt-dlp")
-        print(e)
+               )
 
-    # if media couldnt be downloaded with gallery dl try using yt-dlp
-    if (gallery_dl_no_extractor_error):
-        print("> Checking with yt-dlp...")
-        try:
-            output_directory = os.path.abspath(path)
-            if (include_subfolder):
-                subfolder = os.path.dirname(f'./%(extractor)s/')
-                output_directory = os.path.abspath(os.path.join(path, subfolder))
-            ydl_opts = {
-                'logger': YTDLPLogger(),
-
-                # 'progress_template': 'download',
-                'quiet': False,
-                # 'progress_hooks': [my_hook],
-                'outtmpl': f'{output_directory}/%(extractor)s - %(title).120s.. [%(id)s].%(ext)s'
-            }
-            ydl = yt_dlp.YoutubeDL(ydl_opts)
-            # help(yt_dlp.YoutubeDL)
-            ydl.download(url)
-            # info = ydl.extract_info(url, download=False)
-            # print(json.dumps(ydl.sanitize_info(info)))
-            print('> Downloaded successfully!')
-            # break
-        except yt_dlp.DownloadError as e:
-            yt_dlp_no_extractor_error = 1
-            print("> Could not download the video. Video could be unavailable")
-            print(e)
-        except Exception as e:
-            yt_dlp_no_extractor_error = 1
-            print("> Unexpected error occured...")
-            print(e)
-
-    if (yt_dlp_no_extractor_error):
-        print("> The media could not be downloaded. The URL could be incorrectly formatted or its not supported")
-    else:
-        print("> Media downloaded")
+    # run the download job
+    resss = job.DownloadJob(url)
+    resss.run()
 
 
 
