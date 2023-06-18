@@ -75,18 +75,18 @@ def get_config_args():
         print(fnf_err)
         print("Config.yaml file is not present!!")
         print("Quitting...")
-        quit()
+        sys.exit()
     except yaml.YAMLError as yaml_err:
         print(f"Error reading YAML file: {yaml_err}")
         print("Quitting...")
-        quit()
+        sys.exit()
     except Exception as e:
         print(e)
         # printing type of exception
         # https://stackoverflow.com/a/9824060
         print(e.__class__.__name__)
         print("Quitting...")
-        quit()
+        sys.exit()
 
     # print(user_config)
 
@@ -248,7 +248,7 @@ def config_twitter_download(path, include_domain_subfolder, include_multiple_med
         twt_password = get_env_variables('TWITTER_PASSWORD')
     except Exception as e:
         print(e)
-        quit()
+        sys.exit()
 
     # setting path from argument
     config.set(("extractor",), "base-directory", os.path.abspath(path))
