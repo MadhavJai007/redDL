@@ -9,6 +9,7 @@ RedDL achieves this by using the amazing [YT-DLP](https://github.com/yt-dlp/yt-d
 ## Contents
 * [Supported Sites](#Supported-Sites)
 * [License](#License)
+* [Features] (#Features)
 * [Getting started](#Getting-started)
 
 # Supported Sites
@@ -36,8 +37,14 @@ It currently supports downloading images and videos from the following platforms
 * [![GitHub stars](https://img.shields.io/github/stars/MadhavJai007/redDL.svg?style=social&label=Star)](https://github.com/MadhavJai007/redDL) 
 * [![GitHub watchers](https://img.shields.io/github/watchers/MadhavJai007/redDL.svg?style=social&label=Watch)](https://github.com/MadhavJai007/redDL) 
 * [![GitHub followers](https://img.shields.io/github/followers/MadhavJai007.svg?style=social&label=Follow)](https://github.com/MadhavJai007/redDL)
-    
-## Getting started
+
+# Features
+* Downloading images and videos from Reddit and Twitter
+* Downloading Instagram posts, stories and highlights
+* Downloading Tiktoks
+* Ability to download images and videos from other websites supported by [YT-DLP](https://github.com/yt-dlp/yt-dlp/blob/master/supportedsites.md) and [Gallery-dl](https://github.com/mikf/gallery-dl/blob/master/docs/supportedsites.md)
+
+# Getting started
 
 ### 🚧 Under construction 🚧
 
