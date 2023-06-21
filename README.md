@@ -43,6 +43,7 @@ It currently supports downloading images and videos from the following platforms
 * Downloading Instagram posts, stories and highlights
 * Downloading Tiktoks
 * Ability to download images and videos from other websites supported by [YT-DLP](https://github.com/yt-dlp/yt-dlp/blob/master/supportedsites.md) and [Gallery-dl](https://github.com/mikf/gallery-dl/blob/master/docs/supportedsites.md)
+  * **Note:** ***Although it can do this, its not supported***
 
 # Getting started
 
