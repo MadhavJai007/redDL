@@ -9,7 +9,7 @@ RedDL achieves this by using the amazing [YT-DLP](https://github.com/yt-dlp/yt-d
 ## Contents
 * [Supported Sites](#Supported-Sites)
 * [License](#License)
-* [Features] (#Features)
+* [Features](#Features)
 * [Getting started](#Getting-started)
 
 # Supported Sites
