@@ -19,6 +19,9 @@ mainArguments:
   # dedicated folder for instagram highlights. true or false
   igHighlightSubfolder: true
 
+  # organize instagram post by username. true or false
+  igUsernameSubfolder: true
+
 
 
 #  You can use variables for output strings. Some are exclusive to a website.

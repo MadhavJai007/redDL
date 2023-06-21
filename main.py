@@ -105,6 +105,8 @@ def get_args():
                             help="Using this on an instagram highlight will download it in a 'higlights' subfolder")
     arg_parser.add_argument("--igs", "--ig-story-folder", action="store_true", default=False,
                             help="Using this on an instagram story will download it in a 'stories' subfolder")
+    arg_parser.add_argument("--igu", "--ig-user-folder", action="store_true", default=False,
+                            help="Using this flag will organize downloads by username")
     arg_parser.add_argument("-f", "--filename", help="Use this flag if you want a custom file name", default=None, required=False)
     args = arg_parser.parse_args()
     # print(f'args = {args}')
@@ -125,7 +127,8 @@ def confirm_args(config_args, cli_args):
         'sub': '_subreddit_folder',
         'mm': '_multiple_media_folder',
         'igh': '_ig_highlights_folder',
-        'igs': '_ig_stories_folder'
+        'igs': '_ig_stories_folder',
+        'igu': "_ig_username_folder"
     }
 
     confirmed_args = {}
@@ -281,7 +284,7 @@ def config_twitter_download(path, include_domain_subfolder, include_multiple_med
 
 def config_instagram_download(path, include_domain_subfolder, include_multiple_media_subfolder,
                               dl_name, dl_story_name, dl_hlighlight_name,
-                              include_ig_highlight_subfolder, include_ig_story_subfolder):
+                              include_ig_highlight_subfolder, include_ig_story_subfolder, include_ig_username_subfolder):
     # setting path from argument
     config.set(("extractor",), "base-directory", os.path.abspath(path))
 
@@ -294,12 +297,20 @@ def config_instagram_download(path, include_domain_subfolder, include_multiple_m
         subdirectories.append("instagram")
         subdirectories_story.append("instagram")
         subdirectories_highlight.append("instagram")
+        # subdirectories_username.append("instagram")
+
+    if include_ig_username_subfolder:
+        subdirectories.append("{username}")
+        subdirectories_story.append("{username}")
+        subdirectories_highlight.append("{username}")
 
     if include_ig_story_subfolder:
         subdirectories_story.append("stories")
 
     if include_ig_highlight_subfolder:
         subdirectories_highlight.append("highlights")
+
+
 
 
     mm_subfolder_name = dl_name
@@ -567,6 +578,7 @@ if __name__ == '__main__':
     include_multiple_media_subfolder = args_dict["_multiple_media_folder"]
     include_ig_highlight_subfolder = args_dict["_ig_highlights_folder"]
     include_ig_story_subfolder = args_dict["_ig_stories_folder"]
+    include_ig_username_subfolder = args_dict["_ig_username_folder"]
     custom_file_name = args_dict["custom_filename"]
 
 
@@ -598,7 +610,8 @@ if __name__ == '__main__':
                 dl_name = custom_file_name if custom_file_name is not None else args_dict["_ig_post_filename"]
                 dl_story_name = custom_file_name if custom_file_name is not None else args_dict["_ig_story_filename"]
                 dl_highlight_name = custom_file_name if custom_file_name is not None else args_dict["_ig_highlight_filename"]
-                config_instagram_download(arg_download_path, include_domain_subfolder, include_multiple_media_subfolder, dl_name, dl_story_name, dl_highlight_name, include_ig_highlight_subfolder, include_ig_story_subfolder)
+                config_instagram_download(arg_download_path, include_domain_subfolder, include_multiple_media_subfolder, dl_name, dl_story_name, dl_highlight_name,
+                                          include_ig_highlight_subfolder, include_ig_story_subfolder, include_ig_username_subfolder)
                 gallery_dl_download(cli_args.url)
                 # gallery_dl_get_info(cli_args.url)
             case "imgur":

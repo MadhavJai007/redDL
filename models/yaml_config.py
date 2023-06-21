@@ -13,6 +13,7 @@ class RedDLConfig:
         self._multiple_media_folder = self.check_if_bool(main_arguments["multipleMediaSubfolder"])
         self._ig_stories_folder = self.check_if_bool(main_arguments["igStoriesSubfolder"])
         self._ig_highlights_folder = self.check_if_bool(main_arguments["igHighlightSubfolder"])
+        self._ig_username_folder = self.check_if_bool(main_arguments["igUsernameSubfolder"])
 
         # file name properties
         self._reddit_filename = self.check_empty_str(file_output_names["redditOutputString"])
@@ -51,6 +52,12 @@ class RedDLConfig:
     def ig_highlights_folder(self):
         return self._ig_highlights_folder
 
+    @property
+    def ig_username_folder(self):
+        return self._ig_username_folder
+
+
+    ''' File name string properties'''
     @property
     def ig_highlight_filename(self):
         return self._ig_highlight_filename
