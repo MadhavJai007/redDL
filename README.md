@@ -33,7 +33,7 @@ It currently supports downloading images and videos from the following platforms
     binary, for any purpose, commercial or non-commercial, and by any
     means.
 
-### Show your love with a ⭐ and give the repo a follow to track its progress and updates!
+### Watch and star this repo to track its progress and updates
 * [![GitHub stars](https://img.shields.io/github/stars/MadhavJai007/redDL.svg?style=social&label=Star)](https://github.com/MadhavJai007/redDL) 
 * [![GitHub watchers](https://img.shields.io/github/watchers/MadhavJai007/redDL.svg?style=social&label=Watch)](https://github.com/MadhavJai007/redDL) 
 * [![GitHub followers](https://img.shields.io/github/followers/MadhavJai007.svg?style=social&label=Follow)](https://github.com/MadhavJai007/redDL)
@@ -43,7 +43,7 @@ It currently supports downloading images and videos from the following platforms
 * Downloading Instagram posts, stories and highlights
 * Downloading Tiktoks
 * Ability to download images and videos from other websites supported by [YT-DLP](https://github.com/yt-dlp/yt-dlp/blob/master/supportedsites.md) and [Gallery-dl](https://github.com/mikf/gallery-dl/blob/master/docs/supportedsites.md)
-  * **Note:** ***Although it can do this, its not supported***
+  * **Note:** ***Although it can do this, its not supported by me!***
 
 # Getting started
 
