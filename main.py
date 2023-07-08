@@ -154,6 +154,8 @@ def get_env_variables(key):
         return dotenv_values(".env")[key]
     except KeyError:
         raise Exception("Credentials missing in '.env' configuration! Ensure the .env file is configured correctly!")
+    except Exception as e:
+        raise Exception(e)
 
 def config_reddit_download(path, include_domain_subfolder, include_subreddit_subfolder,
                            include_multiple_media_subfolder, dl_name):
@@ -510,8 +512,8 @@ def download_yt_dlp_generic(url, path, include_subfolder):
                    "filename": {
                        "": "{extractor} - {title} [{id}].{extension}"
                    },
-                   "#": "load ytdl options from config file",
-                   "config-file": "./ytdlpconfig.txt"
+                   "#": "load ytdl options from config file"
+                   # "config-file": "./ytdlpconfig.txt"
                },
 
                )
